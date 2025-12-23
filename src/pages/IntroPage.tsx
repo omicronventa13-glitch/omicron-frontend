@@ -59,7 +59,6 @@ export default function IntroPage({ onLoginSuccess, isDark, isExiting }: IntroPa
           }
         `}
       >
-        {/* AQUI ESTÁ EL CAMBIO CLAVE: isCompact={showLogin} */}
         <Carousel onEnter={() => setShowLogin(true)} isDark={isDark} isCompact={showLogin} />
         
         <div className={`absolute inset-0 bg-slate-950/50 backdrop-blur-[2px] transition-opacity duration-1000 pointer-events-none hidden md:block ${showLogin ? 'opacity-100' : 'opacity-0'}`} />
@@ -75,23 +74,25 @@ export default function IntroPage({ onLoginSuccess, isDark, isExiting }: IntroPa
           ${isDark ? 'bg-slate-950/95 md:bg-slate-950/80 md:border-l md:border-white/5' : 'bg-white/95 md:bg-white/80 md:border-l md:border-slate-200'}
         `}
       >
-        <div className="w-full max-w-md relative">
-          
-          <button 
+        {/* BOTÓN REGRESAR MOVIDO AQUÍ PARA EVITAR ENCIMAMIENTO */}
+        {/* Se posiciona absoluto a la sección completa, no al formulario */}
+        <button 
             onClick={() => setShowLogin(false)} 
-            className={`absolute -top-20 left-0 flex items-center gap-2 text-sm font-bold tracking-wide transition-all duration-500 group
-               ${showLogin ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}
-               ${isDark ? 'text-slate-500 hover:text-white' : 'text-slate-500 hover:text-slate-900'}
+            className={`absolute top-6 left-6 md:top-8 md:left-8 flex items-center gap-2 text-sm font-bold tracking-wide transition-all duration-500 group z-50
+                ${showLogin ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}
+                ${isDark ? 'text-slate-500 hover:text-white' : 'text-slate-500 hover:text-slate-900'}
             `}
             style={{ transitionDelay: '100ms' }}
-          >
+        >
             <div className={`p-2 rounded-full transition-colors group-hover:bg-cyan-500 group-hover:text-white ${isDark ? 'bg-slate-800/50' : 'bg-slate-200'}`}>
-               <ChevronUp size={16} className="md:hidden" />
-               <ChevronLeft size={16} className="hidden md:block" />
+                <ChevronUp size={16} className="md:hidden" />
+                <ChevronLeft size={16} className="hidden md:block" />
             </div>
             REGRESAR
-          </button>
+        </button>
 
+        <div className="w-full max-w-md relative mt-4 md:mt-0">
+          
           <div 
             className={`mb-8 md:mb-12 transition-all duration-700 delay-100 ${showLogin ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'}`}
           >
