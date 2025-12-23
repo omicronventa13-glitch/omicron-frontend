@@ -1,5 +1,6 @@
 import React from 'react';
-import { ShoppingCart, Wrench, BarChart3, LogOut, X, Package, User as UserIcon, FileText, Scissors, QrCode } from 'lucide-react';
+import { ShoppingCart, Wrench, BarChart3, LogOut, X, Package, User as UserIcon, FileText, Scissors, QrCode, Database } from 'lucide-react';
+import api from '../../api';
 import type { User } from '../../types';
 
 interface SidebarProps {
@@ -17,8 +18,7 @@ export default function Sidebar({ user, onLogout, currentModule, setCurrentModul
   const menuItemClass = (module: string) => `w-full flex gap-4 p-4 md:p-3 rounded-xl transition-all duration-200 items-center ${currentModule === module ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 font-bold' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'}`;
 
   // ESTILOS RESPONSIVOS MEJORADOS
-  // top-24: Empieza debajo del Header Global (que mide aprox 6rem/96px)
-  // z-[60]: Por encima del contenido normal, pero gestionado junto con el overlay
+  // top-24: Empieza debajo del Header Global para no obstruirlo
   const containerClass = `
     fixed top-24 left-0 h-[calc(100vh-6rem)] w-[85%] max-w-sm z-[60] 
     flex flex-col border-r shadow-2xl transition-transform duration-300 ease-in-out transform
@@ -28,11 +28,32 @@ export default function Sidebar({ user, onLogout, currentModule, setCurrentModul
   `;
 
   const isAdminOrSuper = user?.role === 'super' || user?.role === 'admin';
+  const isOmicron = user?.username === 'Omicron'; // Permiso exclusivo para Backup
+
+  // Función para descargar el Respaldo
+  const handleBackup = async () => {
+    if (!window.confirm("¿Deseas descargar una copia completa de la base de datos?")) return;
+    
+    try {
+        const response = await api.get('/backup/download', { responseType: 'blob' });
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        const date = new Date().toISOString().split('T')[0];
+        link.setAttribute('download', `Omicron_FullBackup_${date}.json`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        alert("Error al descargar el respaldo.");
+        console.error(error);
+    }
+  };
 
   return (
     <>
-      {/* Overlay oscuro (Solo visible en móvil cuando está abierto) */}
-      {/* top-24: Para no oscurecer el header global y dar efecto de profundidad */}
+      {/* Overlay oscuro (Móvil) */}
       <div 
         className={`fixed inset-0 top-24 bg-black/80 backdrop-blur-sm z-[55] transition-opacity duration-300 md:hidden
           ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
@@ -41,7 +62,7 @@ export default function Sidebar({ user, onLogout, currentModule, setCurrentModul
       />
 
       <aside className={containerClass}>
-        {/* Cabecera Móvil (Logo y Cerrar) */}
+        {/* Cabecera Móvil */}
         <div className="p-6 flex justify-between items-center md:hidden border-b border-slate-700/50 bg-gradient-to-r from-slate-900 to-slate-800">
            <div className="flex items-center gap-2">
              <div className="w-8 h-8 bg-cyan-500 rounded flex items-center justify-center text-white font-bold">M</div>
@@ -53,7 +74,7 @@ export default function Sidebar({ user, onLogout, currentModule, setCurrentModul
         </div>
 
         {/* Navegación */}
-        <nav className="flex-1 p-6 space-y-3 overflow-y-auto">
+        <nav className="flex-1 p-6 space-y-3 overflow-y-auto custom-scrollbar">
           <div className="mb-4 px-2 text-xs font-bold text-slate-500 uppercase tracking-widest">Módulos del Sistema</div>
           
           {/* VISIBLE PARA TODOS */}
@@ -91,6 +112,16 @@ export default function Sidebar({ user, onLogout, currentModule, setCurrentModul
               <button onClick={() => { setCurrentModule('qrgen'); onClose(); }} className={menuItemClass('qrgen')}>
                 <QrCode size={22} /> <span className="text-lg md:text-base">Generador QR</span>
               </button>
+
+              {/* SOLO OMICRON: BACKUP DE BD */}
+              {isOmicron && (
+                  <button 
+                    onClick={handleBackup} 
+                    className="w-full flex gap-4 p-4 md:p-3 rounded-xl transition-all duration-200 items-center text-green-400 hover:bg-green-500/10 border border-dashed border-green-500/30 mt-4"
+                  >
+                    <Database size={22} /> <span className="text-lg md:text-base font-bold">Respaldo BD</span>
+                  </button>
+              )}
             </>
           )}
         </nav>
