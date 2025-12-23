@@ -12,14 +12,14 @@ interface Expense {
 interface CashCutSectionProps {
   isDark: boolean;
   onNotify: (type: 'success' | 'error', msg: string) => void;
-  refreshTrigger: number; // Prop para actualizar datos automáticamente
+  refreshTrigger: number;
 }
 
 export default function CashCutSection({ isDark, onNotify, refreshTrigger }: CashCutSectionProps) {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [timeRange, setTimeRange] = useState<'day' | 'week' | 'month'>('day');
   
-  // Estado para el calendario (Fecha seleccionada)
+  // Estado para el calendario
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   // Estados financieros
@@ -31,7 +31,7 @@ export default function CashCutSection({ isDark, onNotify, refreshTrigger }: Cas
   const [newExpenseDesc, setNewExpenseDesc] = useState('');
   const [newExpenseAmount, setNewExpenseAmount] = useState('');
 
-  // Cargar ventas (Se ejecuta al montar y cuando cambia refreshTrigger)
+  // Cargar ventas
   useEffect(() => {
     const fetchSales = async () => {
       try {
@@ -138,44 +138,38 @@ export default function CashCutSection({ isDark, onNotify, refreshTrigger }: Cas
       onNotify('success', 'Corte de caja guardado correctamente (Simulación).');
   };
 
-  // Estilos
+  // Estilos Base
   const cardClass = `p-6 rounded-2xl border ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-white border-slate-200 shadow-sm'}`;
-  
-  // Clase base general
   const inputBaseClass = `rounded-xl border outline-none transition-colors ${isDark ? 'border-slate-600 text-white focus:border-cyan-500' : 'border-slate-200 text-slate-800 focus:border-cyan-500'}`;
-  
-  // Clase específica para inputs de gastos
   const expenseInputClass = `${inputBaseClass} px-4 py-2 ${isDark ? 'bg-slate-950' : 'bg-white'}`;
-  
-  // Clase para inputs del arqueo
   const mainInputClass = `${inputBaseClass} w-full px-4 py-2 ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`;
 
   return (
     <div className="pb-20 max-w-6xl mx-auto space-y-6 animate-fade-in-up">
         
-        {/* Header y Filtros */}
-        <div className={`p-6 rounded-2xl border flex flex-col md:flex-row justify-between items-center gap-6 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
-            <div>
-                <h2 className={`text-2xl font-black ${isDark ? 'text-white' : 'text-slate-800'}`}>Corte y Finanzas</h2>
+        {/* Header y Filtros (Responsive: Column en móvil, Row en escritorio) */}
+        <div className={`p-4 md:p-6 rounded-2xl border flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 lg:gap-6 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+            <div className="w-full lg:w-auto">
+                <h2 className={`text-xl md:text-2xl font-black ${isDark ? 'text-white' : 'text-slate-800'}`}>Corte y Finanzas</h2>
                 <div className="flex items-center gap-2 mt-1 text-cyan-500">
                     <CalendarIcon size={16} />
-                    <span className="text-sm font-bold uppercase tracking-wide">{dateInfo.label}</span>
+                    <span className="text-xs md:text-sm font-bold uppercase tracking-wide truncate max-w-[200px] md:max-w-none">{dateInfo.label}</span>
                 </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-4 items-center">
+            <div className="flex flex-col sm:flex-row gap-4 items-center w-full lg:w-auto">
                {/* SELECTOR DE FECHA CON NAVEGACIÓN */}
-               <div className="flex items-center gap-2">
+               <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
                    <button onClick={() => handleDateChange(-1)} className={`p-2 rounded-lg hover:bg-slate-500/10 ${isDark ? 'text-white' : 'text-slate-700'}`}>
                        <ChevronLeft size={20} />
                    </button>
                    
-                   <div className="relative">
+                   <div className="relative flex-1 sm:flex-none">
                        <input 
                            type="date" 
                            value={selectedDate}
                            onChange={(e) => setSelectedDate(e.target.value)}
-                           className={`px-4 py-2 rounded-xl font-bold outline-none cursor-pointer text-center w-40 ${isDark ? 'bg-slate-900 text-white border border-slate-600' : 'bg-slate-100 text-slate-800 border border-slate-300'}`}
+                           className={`w-full sm:w-40 px-4 py-2 rounded-xl font-bold outline-none cursor-pointer text-center ${isDark ? 'bg-slate-900 text-white border border-slate-600' : 'bg-slate-100 text-slate-800 border border-slate-300'}`}
                        />
                    </div>
 
@@ -184,13 +178,13 @@ export default function CashCutSection({ isDark, onNotify, refreshTrigger }: Cas
                    </button>
                </div>
 
-               {/* BOTONES DE RANGO */}
-               <div className={`flex p-1 rounded-xl ${isDark ? 'bg-slate-900' : 'bg-slate-100'}`}>
+               {/* BOTONES DE RANGO (Scrollable en móvil) */}
+               <div className={`flex p-1 rounded-xl w-full sm:w-auto overflow-x-auto ${isDark ? 'bg-slate-900' : 'bg-slate-100'}`}>
                    {(['day', 'week', 'month'] as const).map(range => (
                        <button
                             key={range}
                             onClick={() => setTimeRange(range)}
-                            className={`px-6 py-2 rounded-lg text-sm font-bold capitalize transition-all ${timeRange === range ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-400'}`}
+                            className={`flex-1 sm:flex-none px-4 md:px-6 py-2 rounded-lg text-sm font-bold capitalize transition-all whitespace-nowrap ${timeRange === range ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-400'}`}
                        >
                            {range === 'day' ? 'Día' : range === 'week' ? 'Semana' : 'Mes'}
                        </button>
@@ -200,13 +194,13 @@ export default function CashCutSection({ isDark, onNotify, refreshTrigger }: Cas
         </div>
 
         {/* --- SECCIÓN 1: FLUJO DE EFECTIVO --- */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             
             {/* Entradas / Ventas */}
             <div className={cardClass}>
                 <h3 className="text-sm font-bold text-slate-500 uppercase mb-4 flex items-center gap-2"><TrendingUp size={18} className="text-green-500"/> Ingresos por Ventas</h3>
                 <div className="flex justify-between items-end mb-2">
-                    <span className={`text-4xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>${financials.totalSales.toLocaleString()}</span>
+                    <span className={`text-3xl md:text-4xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>${financials.totalSales.toLocaleString()}</span>
                     <span className="text-xs text-slate-500 mb-1">{financials.salesCount} tickets</span>
                 </div>
                 <div className="w-full bg-slate-700/20 h-2 rounded-full overflow-hidden">
@@ -236,7 +230,7 @@ export default function CashCutSection({ isDark, onNotify, refreshTrigger }: Cas
             </div>
 
             {/* Resultado del Corte */}
-            <div className={`p-6 rounded-2xl border flex flex-col justify-between ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+            <div className={`p-6 rounded-2xl border flex flex-col justify-between md:col-span-2 lg:col-span-1 ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
                 <div>
                     <h3 className="text-sm font-bold text-slate-500 uppercase mb-1">Efectivo Esperado</h3>
                     <p className={`text-3xl font-black ${isDark ? 'text-white' : 'text-slate-800'}`}>${financials.expectedCash.toLocaleString()}</p>
@@ -262,25 +256,27 @@ export default function CashCutSection({ isDark, onNotify, refreshTrigger }: Cas
             <div className={cardClass}>
                 <h3 className="text-sm font-bold text-slate-500 uppercase mb-4 flex items-center gap-2"><TrendingDown size={18} className="text-red-500"/> Registro de Gastos</h3>
                 
-                {/* Formulario Agregar Gasto */}
-                <div className="flex gap-2 mb-4">
+                {/* Formulario Agregar Gasto (Responsive: Column en móvil) */}
+                <div className="flex flex-col sm:flex-row gap-2 mb-4">
                     <input 
                         type="text" 
                         placeholder="Descripción (ej. Comida, Luz)" 
-                        className={`${expenseInputClass} flex-1`}
+                        className={`${expenseInputClass} flex-1 w-full`}
                         value={newExpenseDesc}
                         onChange={e => setNewExpenseDesc(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && addExpense()}
                     />
-                    <input 
-                        type="number" 
-                        placeholder="$" 
-                        className={`${expenseInputClass} w-24 text-center`}
-                        value={newExpenseAmount}
-                        onChange={e => setNewExpenseAmount(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && addExpense()}
-                    />
-                    <button onClick={addExpense} className="p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-colors shadow-lg active:scale-95"><Plus size={24}/></button>
+                    <div className="flex gap-2 w-full sm:w-auto">
+                        <input 
+                            type="number" 
+                            placeholder="$" 
+                            className={`${expenseInputClass} w-full sm:w-24 text-center`}
+                            value={newExpenseAmount}
+                            onChange={e => setNewExpenseAmount(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && addExpense()}
+                        />
+                        <button onClick={addExpense} className="p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-colors shadow-lg active:scale-95 flex-shrink-0"><Plus size={24}/></button>
+                    </div>
                 </div>
 
                 {/* Lista de Gastos */}
@@ -304,21 +300,21 @@ export default function CashCutSection({ isDark, onNotify, refreshTrigger }: Cas
             </div>
 
             {/* Resumen de Ganancias Netas */}
-            <div className={`relative overflow-hidden rounded-2xl p-8 flex flex-col justify-center items-center text-center shadow-2xl ${financials.netProfit >= 0 ? 'bg-gradient-to-br from-indigo-900 to-slate-900 border border-indigo-500/30' : 'bg-gradient-to-br from-red-900 to-slate-900 border border-red-500/30'}`}>
+            <div className={`relative overflow-hidden rounded-2xl p-6 md:p-8 flex flex-col justify-center items-center text-center shadow-2xl ${financials.netProfit >= 0 ? 'bg-gradient-to-br from-indigo-900 to-slate-900 border border-indigo-500/30' : 'bg-gradient-to-br from-red-900 to-slate-900 border border-red-500/30'}`}>
                 {/* Fondo decorativo */}
                 <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-grid-pattern pointer-events-none"></div>
                 
                 <h3 className="text-slate-300 font-bold uppercase tracking-widest mb-2 relative z-10 text-xs">Utilidad Neta del Periodo</h3>
-                <h2 className={`text-6xl font-black mb-6 relative z-10 drop-shadow-lg ${financials.netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                <h2 className={`text-4xl md:text-6xl font-black mb-6 relative z-10 drop-shadow-lg ${financials.netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     ${financials.netProfit.toLocaleString()}
                 </h2>
                 
-                <div className="flex w-full justify-center gap-12 text-sm relative z-10 mb-8">
+                <div className="flex flex-col sm:flex-row w-full justify-center gap-4 sm:gap-12 text-sm relative z-10 mb-8">
                     <div className="text-center">
                         <p className="text-slate-400 text-xs uppercase font-bold mb-1">Total Ingresos</p>
                         <p className="text-green-400 font-black text-xl">+${financials.totalSales.toLocaleString()}</p>
                     </div>
-                    <div className="w-px bg-slate-700"></div>
+                    <div className="w-full h-px sm:w-px sm:h-auto bg-slate-700"></div>
                     <div className="text-center">
                         <p className="text-slate-400 text-xs uppercase font-bold mb-1">Total Gastos</p>
                         <p className="text-red-400 font-black text-xl">-${financials.totalExpenses.toLocaleString()}</p>

@@ -36,7 +36,6 @@ export default function IntroPage({ onLoginSuccess, isDark, isExiting }: IntroPa
     }
   };
 
-  // Clases de inputs ajustadas para mejor contraste en modo Light
   const inputClass = `w-full px-6 py-4 rounded-2xl border outline-none text-lg transition-all duration-300 
     ${isDark 
       ? 'bg-slate-900/60 border-slate-700 text-white focus:border-cyan-500 focus:bg-slate-900 focus:shadow-[0_0_20px_rgba(6,182,212,0.1)]' 
@@ -66,7 +65,8 @@ export default function IntroPage({ onLoginSuccess, isDark, isExiting }: IntroPa
 
       {/* --- SECCIÓN 2: LOGIN FORM --- */}
       <div 
-        className={`absolute inset-0 md:inset-auto md:right-0 h-full bg-clip-padding backdrop-filter backdrop-blur-xl transition-all duration-1000 ease-[cubic-bezier(0.23,1,0.32,1)] flex items-center justify-center p-8 md:p-16 z-20
+        className={`absolute inset-0 md:inset-auto md:right-0 h-full bg-clip-padding backdrop-filter backdrop-blur-xl transition-all duration-1000 ease-[cubic-bezier(0.23,1,0.32,1)] 
+          flex flex-col md:flex-row md:items-center md:justify-center p-6 md:p-16 z-20
           ${showLogin 
             ? 'translate-y-0 opacity-100 md:w-1/2 md:translate-x-0 md:translate-y-0' 
             : '-translate-y-full opacity-0 md:w-1/2 md:translate-x-full md:translate-y-0 md:opacity-0 pointer-events-none'
@@ -74,74 +74,80 @@ export default function IntroPage({ onLoginSuccess, isDark, isExiting }: IntroPa
           ${isDark ? 'bg-slate-950/95 md:bg-slate-950/80 md:border-l md:border-white/5' : 'bg-white/95 md:bg-white/80 md:border-l md:border-slate-200'}
         `}
       >
-        {/* BOTÓN REGRESAR MOVIDO AQUÍ PARA EVITAR ENCIMAMIENTO */}
-        {/* Se posiciona absoluto a la sección completa, no al formulario */}
-        <button 
-            onClick={() => setShowLogin(false)} 
-            className={`absolute top-6 left-6 md:top-8 md:left-8 flex items-center gap-2 text-sm font-bold tracking-wide transition-all duration-500 group z-50
-                ${showLogin ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}
-                ${isDark ? 'text-slate-500 hover:text-white' : 'text-slate-500 hover:text-slate-900'}
-            `}
-            style={{ transitionDelay: '100ms' }}
-        >
-            <div className={`p-2 rounded-full transition-colors group-hover:bg-cyan-500 group-hover:text-white ${isDark ? 'bg-slate-800/50' : 'bg-slate-200'}`}>
-                <ChevronUp size={16} className="md:hidden" />
-                <ChevronLeft size={16} className="hidden md:block" />
-            </div>
-            REGRESAR
-        </button>
-
-        <div className="w-full max-w-md relative mt-4 md:mt-0">
-          
-          <div 
-            className={`mb-8 md:mb-12 transition-all duration-700 delay-100 ${showLogin ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'}`}
+        
+        {/* ENCABEZADO MÓVIL CON BOTÓN (Ajustado con pt-24 para librar el Header) */}
+        <div className="w-full flex justify-start pt-24 pb-4 md:pt-0 md:pb-0 md:absolute md:top-8 md:left-8 md:p-0 z-30 shrink-0">
+          <button 
+              onClick={() => setShowLogin(false)} 
+              className={`flex items-center gap-2 text-sm font-bold tracking-wide transition-all duration-500 group
+                  ${showLogin ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}
+                  ${isDark ? 'text-slate-500 hover:text-white' : 'text-slate-500 hover:text-slate-900'}
+              `}
+              style={{ transitionDelay: '100ms' }}
           >
-            <div className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-3xl mb-6 flex items-center justify-center shadow-2xl shadow-cyan-500/30">
-              <Lock className="text-white" size={32} />
-            </div>
-            <h2 className={`text-3xl md:text-4xl font-black mb-3 ${isDark ? 'text-white' : 'text-slate-900'}`}>Bienvenido</h2>
-            <p className={`${isDark ? 'text-slate-400' : 'text-slate-500'} text-base md:text-lg`}>Ingresa tus credenciales de acceso.</p>
-          </div>
-
-          <form onSubmit={handleLogin} className="space-y-5 md:space-y-6">
-            <div className={`transition-all duration-700 delay-200 ${showLogin ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'}`}>
-               <label className={`text-xs font-bold uppercase tracking-wider ml-1 ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>Usuario</label>
-               <input type="text" value={username} onChange={e => setUsername(e.target.value)} className={inputClass} placeholder="Ej: Omicron" />
-            </div>
-            
-            <div className={`transition-all duration-700 delay-300 ${showLogin ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'}`}>
-               <label className={`text-xs font-bold uppercase tracking-wider ml-1 ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>Contraseña</label>
-               <input type="password" value={password} onChange={e => setPassword(e.target.value)} className={inputClass} placeholder="••••••••" />
-            </div>
-            
-            {error && (
-               <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-500 animate-pulse">
-                  <p className="text-sm font-medium">{error}</p>
-               </div>
-            )}
-
-            <div className={`transition-all duration-700 delay-500 ${showLogin ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-              <button 
-                type="submit" 
-                disabled={!username || !password || loading} 
-                className={`w-full py-4 md:py-5 rounded-2xl font-bold text-lg shadow-xl transition-all duration-300 flex items-center justify-center gap-3 group
-                  ${(!username || !password) 
-                    ? 'bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed' 
-                    : 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white hover:shadow-cyan-500/40 hover:scale-[1.02] active:scale-95'
-                  }
-                `}
-              >
-                {loading ? (
-                  <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    INICIAR SESIÓN <ArrowRight size={20} className={`${(!username || !password) ? '' : 'group-hover:translate-x-1 transition-transform'}`} />
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
+              <div className={`p-2 rounded-full transition-colors group-hover:bg-cyan-500 group-hover:text-white ${isDark ? 'bg-slate-800/50' : 'bg-slate-200'}`}>
+                  <ChevronUp size={16} className="md:hidden" />
+                  <ChevronLeft size={16} className="hidden md:block" />
+              </div>
+              <span className="md:inline">REGRESAR</span>
+          </button>
         </div>
+
+        {/* CONTENEDOR DEL FORMULARIO (Centrado en el espacio restante) */}
+        <div className="flex-1 flex items-center justify-center w-full">
+          <div className="w-full max-w-md relative">
+            
+            <div 
+              className={`mb-8 md:mb-12 transition-all duration-700 delay-100 ${showLogin ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'}`}
+            >
+              <div className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-3xl mb-6 flex items-center justify-center shadow-2xl shadow-cyan-500/30">
+                <Lock className="text-white" size={32} />
+              </div>
+              <h2 className={`text-3xl md:text-4xl font-black mb-3 ${isDark ? 'text-white' : 'text-slate-900'}`}>Bienvenido</h2>
+              <p className={`${isDark ? 'text-slate-400' : 'text-slate-500'} text-base md:text-lg`}>Ingresa tus credenciales de acceso.</p>
+            </div>
+
+            <form onSubmit={handleLogin} className="space-y-5 md:space-y-6">
+              <div className={`transition-all duration-700 delay-200 ${showLogin ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'}`}>
+                <label className={`text-xs font-bold uppercase tracking-wider ml-1 ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>Usuario</label>
+                <input type="text" value={username} onChange={e => setUsername(e.target.value)} className={inputClass} placeholder="Ej: Omicron" />
+              </div>
+              
+              <div className={`transition-all duration-700 delay-300 ${showLogin ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'}`}>
+                <label className={`text-xs font-bold uppercase tracking-wider ml-1 ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>Contraseña</label>
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} className={inputClass} placeholder="••••••••" />
+              </div>
+              
+              {error && (
+                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-500 animate-pulse">
+                    <p className="text-sm font-medium">{error}</p>
+                </div>
+              )}
+
+              <div className={`transition-all duration-700 delay-500 ${showLogin ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+                <button 
+                  type="submit" 
+                  disabled={!username || !password || loading} 
+                  className={`w-full py-4 md:py-5 rounded-2xl font-bold text-lg shadow-xl transition-all duration-300 flex items-center justify-center gap-3 group
+                    ${(!username || !password) 
+                      ? 'bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed' 
+                      : 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white hover:shadow-cyan-500/40 hover:scale-[1.02] active:scale-95'
+                    }
+                  `}
+                >
+                  {loading ? (
+                    <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      INICIAR SESIÓN <ArrowRight size={20} className={`${(!username || !password) ? '' : 'group-hover:translate-x-1 transition-transform'}`} />
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
       </div>
     </div>
   );
