@@ -44,7 +44,10 @@ export default function CashCutSection({ isDark, onNotify, refreshTrigger }: Cas
 
   // --- LÓGICA DE FECHAS ---
   const dateInfo = useMemo(() => {
-    const anchorDate = new Date(`${selectedDate}T00:00:00`); 
+    // Crear fecha local basada en el input string YYYY-MM-DD
+    // Agregamos la hora T00:00 para evitar desfases de zona horaria al instanciar
+    const [year, month, day] = selectedDate.split('-').map(Number);
+    const anchorDate = new Date(year, month - 1, day); 
     
     let startDate = new Date(anchorDate);
     let endDate = new Date(anchorDate);
@@ -55,9 +58,10 @@ export default function CashCutSection({ isDark, onNotify, refreshTrigger }: Cas
         endDate.setHours(23,59,59,999);
         label = anchorDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     } else if (timeRange === 'week') {
-        const day = anchorDate.getDay(); 
-        const diff = anchorDate.getDate() - day;
-        startDate = new Date(anchorDate.setDate(diff));
+        const dayOfWeek = anchorDate.getDay(); 
+        const diff = anchorDate.getDate() - dayOfWeek;
+        startDate = new Date(anchorDate);
+        startDate.setDate(diff);
         startDate.setHours(0,0,0,0);
         
         endDate = new Date(startDate);
@@ -96,9 +100,15 @@ export default function CashCutSection({ isDark, onNotify, refreshTrigger }: Cas
 
   // --- MANEJADORES ---
   const handleDateChange = (days: number) => {
-      const current = new Date(selectedDate);
+      const [year, month, day] = selectedDate.split('-').map(Number);
+      const current = new Date(year, month - 1, day);
       current.setDate(current.getDate() + days);
-      setSelectedDate(current.toISOString().split('T')[0]);
+      
+      // Formato YYYY-MM-DD manual para evitar problemas de zona horaria
+      const y = current.getFullYear();
+      const m = String(current.getMonth() + 1).padStart(2, '0');
+      const d = String(current.getDate()).padStart(2, '0');
+      setSelectedDate(`${y}-${m}-${d}`);
   };
 
   const addExpense = () => {
@@ -140,27 +150,32 @@ export default function CashCutSection({ isDark, onNotify, refreshTrigger }: Cas
 
   // Estilos Base
   const cardClass = `p-6 rounded-2xl border ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-white border-slate-200 shadow-sm'}`;
-  const inputBaseClass = `rounded-xl border outline-none transition-colors ${isDark ? 'border-slate-600 text-white focus:border-cyan-500' : 'border-slate-200 text-slate-800 focus:border-cyan-500'}`;
-  const expenseInputClass = `${inputBaseClass} px-4 py-2 ${isDark ? 'bg-slate-950' : 'bg-white'}`;
-  const mainInputClass = `${inputBaseClass} w-full px-4 py-2 ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`;
+  const inputBaseClass = `rounded-xl border outline-none transition-colors focus:ring-2 focus:ring-cyan-500`;
+  
+  // Clase para inputs del arqueo
+  const mainInputClass = `${inputBaseClass} w-full px-4 py-2 ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`;
 
+  // Clase ESPECÍFICA para inputs de gastos (Contraste mejorado)
+  const expenseDescClass = `${inputBaseClass} px-4 py-2 ${isDark ? 'bg-slate-950 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'}`;
+  
   return (
-    <div className="pb-20 max-w-6xl mx-auto space-y-6 animate-fade-in-up">
+    // FIX: Usar w-full y max-w-full para ocupar todo el ancho disponible en pantallas grandes
+    <div className="w-full h-full pb-20 space-y-6 animate-fade-in-up overflow-y-auto">
         
         {/* Header y Filtros (Responsive: Column en móvil, Row en escritorio) */}
-        <div className={`p-4 md:p-6 rounded-2xl border flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 lg:gap-6 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
-            <div className="w-full lg:w-auto">
+        <div className={`p-4 md:p-6 rounded-2xl border flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+            <div className="w-full xl:w-auto">
                 <h2 className={`text-xl md:text-2xl font-black ${isDark ? 'text-white' : 'text-slate-800'}`}>Corte y Finanzas</h2>
                 <div className="flex items-center gap-2 mt-1 text-cyan-500">
                     <CalendarIcon size={16} />
-                    <span className="text-xs md:text-sm font-bold uppercase tracking-wide truncate max-w-[200px] md:max-w-none">{dateInfo.label}</span>
+                    <span className="text-xs md:text-sm font-bold uppercase tracking-wide truncate max-w-full">{dateInfo.label}</span>
                 </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-4 items-center w-full lg:w-auto">
+            <div className="flex flex-col sm:flex-row gap-4 items-center w-full xl:w-auto">
                {/* SELECTOR DE FECHA CON NAVEGACIÓN */}
-               <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
-                   <button onClick={() => handleDateChange(-1)} className={`p-2 rounded-lg hover:bg-slate-500/10 ${isDark ? 'text-white' : 'text-slate-700'}`}>
+               <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start bg-slate-500/5 p-1 rounded-xl">
+                   <button onClick={() => handleDateChange(-1)} className={`p-2 rounded-lg hover:bg-slate-500/20 transition-colors ${isDark ? 'text-white' : 'text-slate-700'}`}>
                        <ChevronLeft size={20} />
                    </button>
                    
@@ -169,11 +184,11 @@ export default function CashCutSection({ isDark, onNotify, refreshTrigger }: Cas
                            type="date" 
                            value={selectedDate}
                            onChange={(e) => setSelectedDate(e.target.value)}
-                           className={`w-full sm:w-40 px-4 py-2 rounded-xl font-bold outline-none cursor-pointer text-center ${isDark ? 'bg-slate-900 text-white border border-slate-600' : 'bg-slate-100 text-slate-800 border border-slate-300'}`}
+                           className={`w-full sm:w-40 px-3 py-1.5 rounded-lg font-bold outline-none cursor-pointer text-center text-sm ${isDark ? 'bg-transparent text-white' : 'bg-transparent text-slate-800'}`}
                        />
                    </div>
 
-                   <button onClick={() => handleDateChange(1)} className={`p-2 rounded-lg hover:bg-slate-500/10 ${isDark ? 'text-white' : 'text-slate-700'}`}>
+                   <button onClick={() => handleDateChange(1)} className={`p-2 rounded-lg hover:bg-slate-500/20 transition-colors ${isDark ? 'text-white' : 'text-slate-700'}`}>
                        <ChevronRight size={20} />
                    </button>
                </div>
@@ -194,7 +209,7 @@ export default function CashCutSection({ isDark, onNotify, refreshTrigger }: Cas
         </div>
 
         {/* --- SECCIÓN 1: FLUJO DE EFECTIVO --- */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             
             {/* Entradas / Ventas */}
             <div className={cardClass}>
@@ -230,7 +245,7 @@ export default function CashCutSection({ isDark, onNotify, refreshTrigger }: Cas
             </div>
 
             {/* Resultado del Corte */}
-            <div className={`p-6 rounded-2xl border flex flex-col justify-between md:col-span-2 lg:col-span-1 ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+            <div className={`p-6 rounded-2xl border flex flex-col justify-between md:col-span-2 xl:col-span-1 ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
                 <div>
                     <h3 className="text-sm font-bold text-slate-500 uppercase mb-1">Efectivo Esperado</h3>
                     <p className={`text-3xl font-black ${isDark ? 'text-white' : 'text-slate-800'}`}>${financials.expectedCash.toLocaleString()}</p>
@@ -250,7 +265,7 @@ export default function CashCutSection({ isDark, onNotify, refreshTrigger }: Cas
         </div>
 
         {/* --- SECCIÓN 2: GASTOS Y UTILIDAD --- */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             
             {/* Gestión de Gastos */}
             <div className={cardClass}>
@@ -261,7 +276,7 @@ export default function CashCutSection({ isDark, onNotify, refreshTrigger }: Cas
                     <input 
                         type="text" 
                         placeholder="Descripción (ej. Comida, Luz)" 
-                        className={`${expenseInputClass} flex-1 w-full`}
+                        className={`${expenseDescClass} flex-1 w-full`}
                         value={newExpenseDesc}
                         onChange={e => setNewExpenseDesc(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && addExpense()}
@@ -270,7 +285,7 @@ export default function CashCutSection({ isDark, onNotify, refreshTrigger }: Cas
                         <input 
                             type="number" 
                             placeholder="$" 
-                            className={`${expenseInputClass} w-full sm:w-24 text-center`}
+                            className={`${expenseDescClass} w-full sm:w-24 text-center`}
                             value={newExpenseAmount}
                             onChange={e => setNewExpenseAmount(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && addExpense()}
