@@ -10,6 +10,55 @@ interface StockSectionProps {
   onCancelEdit?: () => void;       
 }
 
+// --- FUNCIÓN HELPER PARA COMPRIMIR IMÁGENES ---
+// Esta función toma el archivo original, lo redimensiona a máximo 800px y baja la calidad al 70%
+// Esto reduce una foto de 5MB a unos 50KB-100KB, permitiendo que se guarde sin errores.
+const compressImage = (file: File, maxWidth = 800, quality = 0.7): Promise<File> => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        // Calcular nuevas dimensiones manteniendo el aspecto
+        if (width > maxWidth) {
+          height = (maxWidth * height) / width;
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Convertir el canvas a Blob (archivo comprimido)
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const newFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              resolve(newFile);
+            } else {
+              resolve(file); // Si falla, devolver original
+            }
+          }, 'image/jpeg', quality);
+        } else {
+          resolve(file);
+        }
+      };
+      img.onerror = () => resolve(file);
+    };
+    reader.onerror = () => resolve(file);
+  });
+};
+
 export default function StockSection({ isDark, onNotify, editingProduct, onCancelEdit }: StockSectionProps) {
   
   // Estados para imagen
@@ -57,9 +106,9 @@ export default function StockSection({ isDark, onNotify, editingProduct, onCance
   const startCamera = async () => {
     // Si no hay soporte, usar input nativo inmediatamente
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-         onNotify('error', 'Tu navegador no soporta acceso directo a cámara. Usando selector nativo.');
-         cameraInputRef.current?.click();
-         return;
+          onNotify('error', 'Tu navegador no soporta acceso directo a cámara. Usando selector nativo.');
+          cameraInputRef.current?.click();
+          return;
     }
 
     setIsCameraOpen(true);
@@ -209,8 +258,16 @@ export default function StockSection({ isDark, onNotify, editingProduct, onCance
     formData.append('qrCode', getVal('qrCode') || ''); // Enviar QR opcional
     formData.append('year', new Date().getFullYear().toString());
 
+    // --- AQUÍ ESTÁ LA MAGIA DE LA COMPRESIÓN ---
     if (selectedImage) {
-        formData.append('image', selectedImage);
+        try {
+            // Comprimimos la imagen antes de enviarla
+            const compressedFile = await compressImage(selectedImage);
+            formData.append('image', compressedFile);
+        } catch (err) {
+            console.error("Error al comprimir imagen, enviando original", err);
+            formData.append('image', selectedImage);
+        }
     }
 
     try {
