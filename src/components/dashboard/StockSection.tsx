@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { PackagePlus, Save, Layers, Tag, Palette, Hash, DollarSign, Camera, Upload, X, Image as ImageIcon, Edit, QrCode } from 'lucide-react';
+import { PackagePlus, Save, Layers, Tag, Palette, Hash, DollarSign, Camera, Upload, X, Image as ImageIcon, Edit, QrCode, CloudUpload, Loader2 } from 'lucide-react';
 import api from '../../api';
 import type { Product } from '../../types';
 
@@ -10,10 +10,13 @@ interface StockSectionProps {
   onCancelEdit?: () => void;       
 }
 
-// --- FUNCIÓN HELPER PARA COMPRIMIR IMÁGENES ---
-// Esta función toma el archivo original, lo redimensiona a máximo 800px y baja la calidad al 70%
-// Esto reduce una foto de 5MB a unos 50KB-100KB, permitiendo que se guarde sin errores.
-const compressImage = (file: File, maxWidth = 800, quality = 0.7): Promise<File> => {
+// --- CONFIGURACIÓN CLOUDINARY ---
+const CLOUDINARY_CLOUD_NAME = "dxdaoojfq"; // Tu Cloud Name real
+const CLOUDINARY_UPLOAD_PRESET = "novatech_preset"; // ⚠️ CREA ESTE PRESET EN TU DASHBOARD COMO 'UNSIGNED'
+
+// --- PROCESAMIENTO DE IMAGEN (OPTIMIZADO PARA CARDS) ---
+// Redimensiona a 1080px (Calidad Media-Alta Nítida)
+const processImageForUpload = (file: File): Promise<File> => {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -22,13 +25,20 @@ const compressImage = (file: File, maxWidth = 800, quality = 0.7): Promise<File>
       img.src = event.target?.result as string;
       img.onload = () => {
         const canvas = document.createElement('canvas');
+        const MAX_SIZE = 1080; // Balance perfecto entre nitidez y peso
         let width = img.width;
         let height = img.height;
 
-        // Calcular nuevas dimensiones manteniendo el aspecto
-        if (width > maxWidth) {
-          height = (maxWidth * height) / width;
-          width = maxWidth;
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height;
+            height = MAX_SIZE;
+          }
         }
 
         canvas.width = width;
@@ -36,41 +46,53 @@ const compressImage = (file: File, maxWidth = 800, quality = 0.7): Promise<File>
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
-          
-          // Convertir el canvas a Blob (archivo comprimido)
           canvas.toBlob((blob) => {
             if (blob) {
-              const newFile = new File([blob], file.name, {
-                type: 'image/jpeg',
-                lastModified: Date.now(),
-              });
+              // JPEG al 90% de calidad para subida inicial
+              const newFile = new File([blob], file.name, { type: 'image/jpeg' });
               resolve(newFile);
             } else {
-              resolve(file); // Si falla, devolver original
+              resolve(file);
             }
-          }, 'image/jpeg', quality);
+          }, 'image/jpeg', 0.90);
         } else {
           resolve(file);
         }
       };
-      img.onerror = () => resolve(file);
     };
-    reader.onerror = () => resolve(file);
   });
+};
+
+// Subida directa usando fetch (Sin librería pesada de node)
+const uploadToCloudinary = async (file: File): Promise<string> => {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+      method: "POST",
+      body: formData
+  });
+
+  if (!response.ok) throw new Error("Error al conectar con Cloudinary. Revisa tu Preset.");
+  const data = await response.json();
+  
+  // Inyectamos optimización automática (f_auto, q_auto) en la URL
+  // Esto hace que Cloudinary sirva la mejor versión posible para el dispositivo
+  const optimizedUrl = data.secure_url.replace('/upload/', '/upload/f_auto,q_auto/');
+  return optimizedUrl;
 };
 
 export default function StockSection({ isDark, onNotify, editingProduct, onCancelEdit }: StockSectionProps) {
   
-  // Estados para imagen
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  
-  // Estados para cámara
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string>(''); // Estado para mostrar progreso
   
-  // Referencias
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null); // Input nativo de respaldo
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -91,7 +113,7 @@ export default function StockSection({ isDark, onNotify, editingProduct, onCance
         (form.elements.namedItem('category') as HTMLSelectElement).value = editingProduct.category;
         (form.elements.namedItem('stock') as HTMLInputElement).value = String(editingProduct.stock);
         (form.elements.namedItem('price') as HTMLInputElement).value = String(editingProduct.price);
-        (form.elements.namedItem('qrCode') as HTMLInputElement).value = editingProduct.qrCode || ''; // Cargar QR
+        (form.elements.namedItem('qrCode') as HTMLInputElement).value = editingProduct.qrCode || ''; 
         
         if (editingProduct.image) setPreviewUrl(editingProduct.image);
         
@@ -102,103 +124,46 @@ export default function StockSection({ isDark, onNotify, editingProduct, onCance
     }
   }, [editingProduct]);
 
-  // --- LÓGICA DE CÁMARA ROBUSTA ---
+  // --- LÓGICA DE CÁMARA ---
   const startCamera = async () => {
-    // Si no hay soporte, usar input nativo inmediatamente
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          onNotify('error', 'Tu navegador no soporta acceso directo a cámara. Usando selector nativo.');
-          cameraInputRef.current?.click();
-          return;
-    }
-
     setIsCameraOpen(true);
-
     try {
-      let stream: MediaStream | null = null;
+      let stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).catch(() => null);
+      if (!stream) stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }).catch(() => null);
+      if (!stream) stream = await navigator.mediaDevices.getUserMedia({ video: true }).catch(() => null);
 
-      // Intento 1: Cámara Trasera (Environment)
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      } catch (err) {
-        console.log("Intento 1 fallido (Trasera):", err);
+      if (stream) {
+        streamRef.current = stream;
+        setTimeout(() => {
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            videoRef.current.play().catch(e => console.error(e));
+          }
+        }, 100);
+      } else {
+        throw new Error("No se encontró cámara");
       }
-
-      // Intento 2: Cámara Frontal (User) - Si falló la trasera
-      if (!stream) {
-        try {
-             stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-        } catch (err) {
-             console.log("Intento 2 fallido (Frontal):", err);
-        }
-      }
-
-      // Intento 3: Cualquier cámara disponible
-      if (!stream) {
-         stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      }
-
-      // Si llegamos aquí y tenemos stream, configuramos el video
-      streamRef.current = stream;
-      
-      // Pequeño delay para asegurar que el modal renderizó el elemento <video>
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(e => console.error("Error play:", e));
-        }
-      }, 100);
-
-    } catch (err: any) {
-      console.error("Error fatal cámara:", err);
-      setIsCameraOpen(false); // Cerramos el modal porque falló
-      
-      let msg = 'No se pudo activar la cámara.';
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-          msg = 'Permiso denegado. Habilita el acceso a la cámara en tu navegador.';
-      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-          msg = 'No se detectó ninguna cámara en este dispositivo.';
-      }
-      
-      onNotify('error', msg);
-      
-      // PLAN B: Activar input nativo automáticamente
-      setTimeout(() => {
-          cameraInputRef.current?.click();
-      }, 500);
+    } catch (err) {
+      onNotify('error', 'No se pudo acceder a la cámara.');
+      setIsCameraOpen(false);
+      setTimeout(() => cameraInputRef.current?.click(), 500);
     }
   };
 
   const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
+    streamRef.current?.getTracks().forEach(track => track.stop());
     setIsCameraOpen(false);
   };
-
-  // Cleanup al desmontar
-  useEffect(() => {
-    return () => {
-        if (isCameraOpen) stopCamera();
-    };
-  }, [isCameraOpen]);
 
   const capturePhoto = () => {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      
-      // Configurar canvas al tamaño real del video
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      
       const context = canvas.getContext('2d');
       if (context) {
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
         canvas.toBlob((blob) => {
           if (blob) {
             const file = new File([blob], `foto_stock_${Date.now()}.jpg`, { type: 'image/jpeg' });
@@ -206,19 +171,14 @@ export default function StockSection({ isDark, onNotify, editingProduct, onCance
             setPreviewUrl(URL.createObjectURL(file));
             stopCamera(); 
           }
-        }, 'image/jpeg', 0.85);
+        }, 'image/jpeg', 0.95);
       }
     }
   };
 
-  // --- MANEJO DE ARCHIVOS ---
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!file.type.startsWith('image/')) {
-        onNotify('error', 'Por favor selecciona un archivo de imagen válido.');
-        return;
-      }
       setSelectedImage(file);
       setPreviewUrl(URL.createObjectURL(file));
     }
@@ -226,90 +186,92 @@ export default function StockSection({ isDark, onNotify, editingProduct, onCance
 
   const clearImage = () => {
     setSelectedImage(null);
-    if (previewUrl && previewUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(previewUrl);
-    }
     setPreviewUrl(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (cameraInputRef.current) cameraInputRef.current.value = '';
   };
 
-  // --- ENVÍO DEL FORMULARIO ---
+  // --- ENVÍO CON SUBIDA A CLOUDINARY ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     const form = e.target as HTMLFormElement;
-    
-    const formData = new FormData();
     const getVal = (name: string) => (form.elements.namedItem(name) as HTMLInputElement)?.value;
     const getSelectVal = (name: string) => (form.elements.namedItem(name) as HTMLSelectElement)?.value;
 
-    if (!getVal('brand') || !getVal('model') || !getVal('price') || !getVal('stock')) {
+    if (!getVal('brand') || !getVal('model') || !getVal('price')) {
         onNotify('error', 'Por favor completa los campos obligatorios.');
         return;
     }
 
-    formData.append('brand', getVal('brand'));
-    formData.append('model', getVal('model'));
-    formData.append('type', getVal('type'));
-    formData.append('color', getVal('color'));
-    formData.append('category', getSelectVal('category'));
-    formData.append('stock', getVal('stock'));
-    formData.append('price', getVal('price'));
-    formData.append('qrCode', getVal('qrCode') || ''); // Enviar QR opcional
-    formData.append('year', new Date().getFullYear().toString());
-
-    // --- AQUÍ ESTÁ LA MAGIA DE LA COMPRESIÓN ---
-    if (selectedImage) {
-        try {
-            // Comprimimos la imagen antes de enviarla
-            const compressedFile = await compressImage(selectedImage);
-            formData.append('image', compressedFile);
-        } catch (err) {
-            console.error("Error al comprimir imagen, enviando original", err);
-            formData.append('image', selectedImage);
-        }
-    }
+    setIsSubmitting(true);
+    setUploadStatus('Procesando...');
 
     try {
-      if (editingProduct) {
-          await api.put(`/products/${editingProduct._id}`, formData);
-          onNotify('success', 'Producto actualizado correctamente.');
-          if (onCancelEdit) onCancelEdit();
-      } else {
-          await api.post('/products', formData);
-          const modeloStr = `${getVal('type')} ${getVal('model')}`;
-          onNotify('success', `Artículo "${modeloStr}" agregado al stock.`);
-          form.reset();
-          clearImage();
-      }
+        let imageUrl = editingProduct?.image || '';
+
+        // 1. Si hay nueva imagen, la subimos a Cloudinary
+        if (selectedImage) {
+            setUploadStatus('Optimizando...');
+            const processedFile = await processImageForUpload(selectedImage);
+            
+            setUploadStatus('Subiendo a la Nube...');
+            // Obtenemos la URL pública optimizada (f_auto, q_auto)
+            imageUrl = await uploadToCloudinary(processedFile);
+        }
+
+        // 2. Preparamos datos para Mongo (Guardamos solo la URL de texto)
+        const payload = {
+            brand: getVal('brand'),
+            model: getVal('model'),
+            type: getVal('type'),
+            color: getVal('color'),
+            category: getSelectVal('category'),
+            stock: Number(getVal('stock')),
+            price: Number(getVal('price')),
+            qrCode: getVal('qrCode') || '',
+            year: new Date().getFullYear().toString(),
+            image: imageUrl // URL de Cloudinary
+        };
+
+        setUploadStatus('Guardando datos...');
+        const config = { headers: { 'Content-Type': 'application/json' } };
+
+        if (editingProduct) {
+            await api.put(`/products/${editingProduct._id}`, payload, config);
+            onNotify('success', 'Producto actualizado correctamente.');
+            if (onCancelEdit) onCancelEdit();
+        } else {
+            await api.post('/products', payload, config);
+            onNotify('success', `Artículo agregado.`);
+            form.reset();
+            clearImage();
+        }
     } catch (error: any) {
-      console.error(error);
-      let errorMsg = 'Error al guardar el artículo.';
-      if (error.response?.data) {
-        errorMsg = typeof error.response.data === 'string' 
-            ? error.response.data 
-            : (error.response.data.message || JSON.stringify(error.response.data));
-      }
-      onNotify('error', errorMsg);
+        console.error(error);
+        let msg = 'Error al guardar.';
+        if (error.message.includes('Preset')) msg = 'Error: Configura el Upload Preset en Cloudinary.';
+        onNotify('error', msg);
+    } finally {
+        setIsSubmitting(false);
+        setUploadStatus('');
     }
   };
 
   return (
     <div className="max-w-4xl mx-auto pb-32 relative">
       
-      {/* --- MODAL DE CÁMARA --- */}
+      {/* Modal Cámara */}
       {isCameraOpen && (
         <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center animate-in fade-in duration-200">
             <div className="relative w-full max-w-lg aspect-[3/4] bg-black md:rounded-2xl overflow-hidden border border-slate-700 shadow-2xl">
                 <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover"></video>
                 <canvas ref={canvasRef} className="hidden"></canvas>
-                
-                <div className="absolute bottom-0 left-0 right-0 p-6 flex justify-between items-center bg-gradient-to-t from-black/90 via-black/50 to-transparent">
-                    <button type="button" onClick={stopCamera} className="p-4 text-white hover:text-red-400 transition-colors rounded-full hover:bg-white/10" title="Cancelar"><X size={32} /></button>
-                    <button type="button" onClick={capturePhoto} className="w-20 h-20 rounded-full border-4 border-white/30 flex items-center justify-center hover:scale-105 transition-transform active:scale-95 hover:border-white bg-white/10 backdrop-blur-sm" title="Capturar foto"><div className="w-16 h-16 rounded-full bg-white shadow-lg"></div></button>
-                    <div className="w-16"></div>
+                <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-8 items-center z-20">
+                    <button type="button" onClick={stopCamera} className="p-4 bg-red-600/80 text-white rounded-full"><X size={24} /></button>
+                    <button type="button" onClick={capturePhoto} className="w-20 h-20 bg-white rounded-full border-4 border-slate-300 shadow-xl active:scale-95 transition-transform"></button>
                 </div>
-                <div className="absolute top-4 left-0 right-0 text-center pointer-events-none"><span className="bg-black/50 text-white text-xs px-3 py-1 rounded-full backdrop-blur-md border border-white/10">Cámara Activa</span></div>
             </div>
         </div>
       )}
@@ -332,13 +294,12 @@ export default function StockSection({ isDark, onNotify, editingProduct, onCance
             </div>
             {editingProduct && (
                 <button onClick={onCancelEdit} className="text-red-400 flex items-center gap-1 text-sm font-bold hover:underline hover:text-red-300 transition-colors">
-                    <X size={16} /> Cancelar Edición
+                    <X size={16} /> Cancelar
                 </button>
             )}
         </div>
 
-        <form ref={formRef} onSubmit={handleSubmit} className="space-y-6" encType="multipart/form-data">
-          
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="relative"><label className={labelClass}>Marca</label><Layers size={16} className={iconClass} /><input name="brand" placeholder="Ej. Apple" required className={inputClass} /></div>
             <div className="relative"><label className={labelClass}>Modelo</label><Tag size={16} className={iconClass} /><input name="model" placeholder="Ej. iPhone 15" required className={inputClass} /></div>
@@ -350,11 +311,10 @@ export default function StockSection({ isDark, onNotify, editingProduct, onCance
              <div className="relative"><label className={labelClass}>Categoría</label><select name="category" className={`${inputClass} appearance-none`}><option value="Fundas">Fundas</option><option value="Cargadores">Cargadores</option><option value="Cables">Cables</option><option value="Accesorios">Accesorios</option><option value="Telefonia">Telefonía</option><option value="Computo">Cómputo</option></select></div>
           </div>
           
-          {/* CAMPO QR */}
           <div className="relative">
              <label className={labelClass}>Código QR (Opcional)</label>
              <QrCode size={16} className={iconClass} />
-             <input name="qrCode" placeholder="Ej: ART-0001 (Escanear o Escribir)" className={inputClass} />
+             <input name="qrCode" placeholder="Ej: ART-0001" className={inputClass} />
           </div>
 
           <div className="p-6 rounded-2xl border border-dashed border-slate-600/30 bg-slate-500/5 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -364,30 +324,30 @@ export default function StockSection({ isDark, onNotify, editingProduct, onCance
 
           <div className={`p-6 rounded-2xl border ${isDark ? 'border-slate-700/50 bg-slate-800/50' : 'border-slate-200 bg-slate-50/50'}`}>
              <label className={`${labelClass} mb-3 block flex items-center gap-2`}><ImageIcon size={16}/> Imagen del Producto</label>
-             
-             {/* INPUT OCULTO 1: Archivo */}
              <input type="file" ref={fileInputRef} onChange={handleImageSelect} accept="image/*" className="hidden" />
-             
-             {/* INPUT OCULTO 2: Cámara Nativa (Plan B) */}
              <input type="file" ref={cameraInputRef} onChange={handleImageSelect} accept="image/*" capture="environment" className="hidden" />
 
              {!previewUrl ? (
                 <div className="grid grid-cols-2 gap-4">
-                    <button type="button" onClick={startCamera} className={`flex flex-col items-center justify-center gap-2 p-6 rounded-xl border-2 border-dashed transition-all ${isDark ? 'border-slate-600 hover:border-cyan-500 text-slate-300 hover:text-cyan-400 hover:bg-cyan-500/10' : 'border-slate-300 hover:border-cyan-500 text-slate-600 hover:text-cyan-600'}`}><Camera size={28} /><span className="text-sm font-bold">Tomar Foto</span></button>
-                    <button type="button" onClick={() => fileInputRef.current?.click()} className={`flex flex-col items-center justify-center gap-2 p-6 rounded-xl border-2 border-dashed transition-all ${isDark ? 'border-slate-600 hover:border-purple-500 text-slate-300 hover:text-purple-400 hover:bg-purple-500/10' : 'border-slate-300 hover:border-purple-500 text-slate-600 hover:text-purple-600'}`}><Upload size={28} /><span className="text-sm font-bold">Subir Imagen</span></button>
+                    <button type="button" onClick={startCamera} className={`flex flex-col items-center justify-center gap-2 p-6 rounded-xl border-2 border-dashed transition-all ${isDark ? 'border-slate-600 hover:border-cyan-500 text-slate-300 hover:text-cyan-400 hover:bg-cyan-500/10' : 'border-slate-300 hover:border-cyan-500 text-slate-600 hover:text-cyan-600'}`}><Camera size={28} /><span className="text-sm font-bold">Cámara</span></button>
+                    <button type="button" onClick={() => fileInputRef.current?.click()} className={`flex flex-col items-center justify-center gap-2 p-6 rounded-xl border-2 border-dashed transition-all ${isDark ? 'border-slate-600 hover:border-purple-500 text-slate-300 hover:text-purple-400 hover:bg-purple-500/10' : 'border-slate-300 hover:border-purple-500 text-slate-600 hover:text-purple-600'}`}><Upload size={28} /><span className="text-sm font-bold">Galería</span></button>
                 </div>
              ) : (
                 <div className="relative rounded-xl overflow-hidden border-2 border-cyan-500/50 shadow-lg w-full max-w-xs mx-auto group">
                     <img src={previewUrl} alt="Preview" className="w-full h-48 object-cover" />
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                         <button type="button" onClick={clearImage} className="p-3 bg-red-500 hover:bg-red-600 text-white rounded-full transform hover:scale-110 transition-all shadow-lg" title="Eliminar imagen"><X size={24} /></button>
+                         <button type="button" onClick={clearImage} className="p-3 bg-red-500 hover:bg-red-600 text-white rounded-full transform hover:scale-110 transition-all shadow-lg"><X size={24} /></button>
                     </div>
                 </div>
              )}
           </div>
 
-          <button type="submit" className={`w-full py-4 font-bold rounded-xl flex items-center justify-center gap-2 transition-all hover:scale-[1.02] shadow-lg cursor-pointer ${editingProduct ? 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/20' : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 shadow-purple-500/20'} text-white`}>
-              <Save size={20} /> {editingProduct ? 'GUARDAR CAMBIOS' : 'GUARDAR EN STOCK'}
+          <button type="submit" disabled={isSubmitting} className={`w-full py-4 font-bold rounded-xl flex items-center justify-center gap-2 transition-all hover:scale-[1.02] shadow-lg cursor-pointer ${editingProduct ? 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/20' : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 shadow-purple-500/20'} text-white ${isSubmitting ? 'opacity-70 cursor-wait' : ''}`}>
+              {isSubmitting ? (
+                 <><Loader2 className="animate-spin" size={20} /> {uploadStatus}</>
+              ) : (
+                 <><Save size={20} /> {editingProduct ? 'GUARDAR CAMBIOS' : 'GUARDAR EN STOCK'}</>
+              )}
           </button>
 
         </form>
