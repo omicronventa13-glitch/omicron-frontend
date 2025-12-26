@@ -43,8 +43,8 @@ export default function App() {
         <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20 backdrop-blur-md">
            <Database className="text-white" size={20} />
         </div>
-        <h1 className={`text-2xl font-black tracking-widest drop-shadow-sm ${isDark ? 'text-white' : 'text-slate-800'}`}>
-          ÓMICRON<span className="text-cyan-400">.</span>
+        <h1 className="text-2xl font-black tracking-widest drop-shadow-sm bg-gradient-to-br from-red-500 via-red-700 to-red-900 bg-clip-text text-transparent">
+          NOVA TECH<span className="">.</span>
         </h1>
       </div>
       <button 
