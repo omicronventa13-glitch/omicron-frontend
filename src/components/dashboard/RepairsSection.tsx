@@ -1,14 +1,77 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Send, Calendar, DollarSign, Smartphone, User as UserIcon, Wrench, Edit, Trash2, X, FileText, Image as ImageIcon, PenTool, Eye, Camera, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
+import { Plus, Send, Calendar, DollarSign, Smartphone, User as UserIcon, Wrench, Edit, Trash2, X, FileText, Image as ImageIcon, PenTool, Eye, Camera, CheckCircle, Clock, AlertTriangle, Loader2 } from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
 import { Document, Page, Text, View, StyleSheet, Image as PDFImage, pdf } from '@react-pdf/renderer';
 import api from '../../api';
 import type { RepairOrder } from '../../types';
 
-// --- IMPORTAMOS LOS SUBMÓDULOS (Asegúrate de tenerlos en la carpeta 'repairs') ---
+// --- IMPORTAMOS LOS SUBMÓDULOS ---
 import RepairForm from './repairs/RepairForm';
 import RepairList from './repairs/RepairList';
 import RepairDetailsModal from './repairs/RepairDetailsModal';
+
+// --- CONFIGURACIÓN CLOUDINARY ---
+const CLOUDINARY_CLOUD_NAME = "dxdaoojfq"; 
+const CLOUDINARY_UPLOAD_PRESET = "novatech_preset"; 
+
+// --- HELPERS DE IMAGEN (Idénticos a StockSection para consistencia) ---
+const processImageForUpload = (file: File): Promise<File> => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        try {
+            const canvas = document.createElement('canvas');
+            const MAX_SIZE = 1000; // 1000px para balance calidad/peso
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+              if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
+            } else {
+              if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              canvas.toBlob((blob) => {
+                if (blob) {
+                  const fileName = `evidence_${Date.now()}.jpg`;
+                  resolve(new File([blob], fileName, { type: 'image/jpeg' }));
+                } else { resolve(file); }
+              }, 'image/jpeg', 0.80);
+            } else { resolve(file); }
+        } catch (e) { resolve(file); }
+      };
+      img.onerror = () => resolve(file);
+    };
+    reader.onerror = () => resolve(file);
+  });
+};
+
+const uploadToCloudinary = async (file: File): Promise<string> => {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+
+  try {
+      const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+          method: "POST",
+          body: formData
+      });
+      if (!response.ok) throw new Error("Error subiendo a Cloudinary");
+      const data = await response.json();
+      return data.secure_url.replace('/upload/', '/upload/f_auto,q_auto/');
+  } catch (err: any) {
+      throw new Error(err.message || "Fallo de red");
+  }
+};
 
 // --- ESTILOS DEL PDF ---
 const pdfStyles = StyleSheet.create({
@@ -126,59 +189,89 @@ export default function RepairsSection({ repairs, onReload, isDark, onNotify }: 
   const [selectedRepair, setSelectedRepair] = useState<RepairOrder | null>(null);
   const [editingRepair, setEditingRepair] = useState<RepairOrder | null>(null);
   const [closingRepair, setClosingRepair] = useState<RepairOrder | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [formKey, setFormKey] = useState(0);
 
   // --- FILTRO CRÍTICO: Ocultar entregados ---
-  // Esta lista 'activeRepairs' solo tendrá las órdenes pendientes/en proceso.
-  // Las órdenes con status 'Entregado' se filtran y no se muestran.
   const activeRepairs = (repairs || []).filter(r => r.status !== 'Entregado');
 
   const handleSubmit = async (formData: FormData, evidenceFiles: File[], signatureBlob: Blob | null) => {
-    const submitData = new FormData();
+    // 1. Validaciones básicas
     const get = (name: string) => (formData.get(name) as string) || '';
-
     if (!get('client') || !get('service')) {
         onNotify('error', 'Faltan datos obligatorios: Cliente o Servicio.');
         return;
     }
 
-    submitData.append('clientName', get('client')); 
-    submitData.append('phone', get('phone'));
-    submitData.append('service', get('service'));
-    submitData.append('cost', get('cost') || '0');
-    submitData.append('downPayment', get('downPayment') || '0');
-    submitData.append('comments', get('comments'));
-    
-    const rawDate = get('deliveryDate');
-    if (rawDate) submitData.append('deliveryDate', new Date(rawDate).toISOString());
-    
-    submitData.append('brand', get('brand'));
-    submitData.append('model', get('model'));
-    submitData.append('color', get('color'));
-    
-    submitData.append('status', editingRepair ? editingRepair.status : 'Pendiente');
-
-    evidenceFiles.forEach(f => submitData.append('evidencePhotos', f));
-    if (signatureBlob) {
-        submitData.append('clientSignature', signatureBlob, 'signature.png');
-    }
+    setIsUploading(true);
 
     try {
-      if (editingRepair) {
-        await api.put(`/repairs/${editingRepair._id}`, submitData);
-        onNotify('success', 'Orden actualizada correctamente.');
-        setEditingRepair(null);
-      } else {
-        await api.post('/repairs', submitData);
-        onNotify('success', '¡Orden creada con éxito!');
-        setFormKey(prev => prev + 1);
-      }
-      onReload();
+        // 2. Procesar Evidencias Fotográficas
+        const evidenceUrls: string[] = [];
+        if (evidenceFiles.length > 0) {
+            onNotify('success', `Procesando ${evidenceFiles.length} fotos de evidencia...`);
+            for (const file of evidenceFiles) {
+                const processed = await processImageForUpload(file);
+                const url = await uploadToCloudinary(processed);
+                evidenceUrls.push(url);
+            }
+        }
+
+        // 3. Procesar Firma
+        let signatureUrl = '';
+        if (signatureBlob) {
+            onNotify('success', 'Guardando firma digital...');
+            const sigFile = new File([signatureBlob], `signature_${Date.now()}.png`, { type: 'image/png' });
+            signatureUrl = await uploadToCloudinary(sigFile);
+        }
+
+        // 4. Construir Payload JSON
+        // Nota: Si es edición, preservamos las fotos anteriores si no se subieron nuevas, o las combinamos.
+        // Aquí asumiremos que se agregan a las existentes.
+        
+        const currentEvidence = editingRepair ? (editingRepair.evidencePhotos || []) : [];
+        const finalEvidence = [...currentEvidence, ...evidenceUrls];
+        
+        // Si no se subió nueva firma, mantenemos la anterior en edición
+        const finalSignature = signatureUrl || (editingRepair ? editingRepair.clientSignature : '');
+
+        const payload = {
+            clientName: get('client'),
+            phone: get('phone'),
+            service: get('service'),
+            cost: Number(get('cost') || 0),
+            downPayment: Number(get('downPayment') || 0),
+            comments: get('comments'),
+            deliveryDate: get('deliveryDate') ? new Date(get('deliveryDate')).toISOString() : null,
+            brand: get('brand'),
+            model: get('model'),
+            color: get('color'),
+            status: editingRepair ? editingRepair.status : 'Pendiente',
+            evidencePhotos: finalEvidence, // Array de Strings (URLs)
+            clientSignature: finalSignature // String (URL)
+        };
+
+        const config = { headers: { 'Content-Type': 'application/json' } };
+
+        if (editingRepair) {
+            await api.put(`/repairs/${editingRepair._id}`, payload, config);
+            onNotify('success', 'Orden actualizada correctamente.');
+            setEditingRepair(null);
+        } else {
+            await api.post('/repairs', payload, config);
+            onNotify('success', '¡Orden creada con éxito!');
+            setFormKey(prev => prev + 1);
+        }
+        onReload();
+
     } catch (error: any) {
-      const msg = error.response?.data?.message || error.message || 'Error de conexión.';
-      onNotify('error', msg);
+        console.error(error);
+        const msg = error.message || 'Error al procesar la solicitud.';
+        onNotify('error', msg);
+    } finally {
+        setIsUploading(false);
     }
   };
 
@@ -222,6 +315,15 @@ export default function RepairsSection({ repairs, onReload, isDark, onNotify }: 
   return (
     <div className="grid lg:grid-cols-2 gap-8 pb-32 relative">
       
+      {/* INDICADOR DE CARGA GLOBAL (Bloqueo de pantalla) */}
+      {isUploading && (
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center text-white">
+            <Loader2 size={64} className="animate-spin text-cyan-400 mb-4" />
+            <h3 className="text-xl font-bold">Subiendo evidencias a la nube...</h3>
+            <p className="text-sm text-slate-300">Por favor espere, no cierre la ventana.</p>
+        </div>
+      )}
+
       {/* MODAL ELIMINAR */}
       {deletingId && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
@@ -274,7 +376,6 @@ export default function RepairsSection({ repairs, onReload, isDark, onNotify }: 
       />
 
       {/* 2. COMPONENTE LISTA (FILTRADA) */}
-      {/* Solo pasamos activeRepairs para que no se vean las entregadas */}
       <RepairList 
         repairs={activeRepairs} 
         onEdit={setEditingRepair} 
