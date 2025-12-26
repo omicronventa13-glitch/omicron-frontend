@@ -39,8 +39,8 @@ const FlipCard = ({ product, isDark, onAdd }: { product: Product, isDark: boolea
                alt={product.model} 
                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
              />
-             {/* Badge Stock */}
-             <span className={`absolute top-2 right-2 px-1.5 py-0.5 text-[9px] font-black rounded tracking-wider shadow-sm ${product.stock > 0 ? 'bg-green-500/90 text-white' : 'bg-red-500/90 text-white'}`}>
+             {/* Badge Stock: Aumentado tamaño (20% aprox) */}
+             <span className={`absolute top-2 right-2 px-2.5 py-1 text-[11px] font-black rounded tracking-wider shadow-sm ${product.stock > 0 ? 'bg-green-500/90 text-white' : 'bg-red-500/90 text-white'}`}>
                 {product.stock > 0 ? `${product.stock}` : '0'}
              </span>
           </div>
@@ -64,27 +64,29 @@ const FlipCard = ({ product, isDark, onAdd }: { product: Product, isDark: boolea
           </div>
         </div>
 
-        {/* REVERSO */}
+        {/* REVERSO: Aumentado tamaño de letra un 20% */}
         <div className={`absolute w-full h-full backface-hidden rotate-y-180 rounded-2xl p-4 flex flex-col shadow-xl border ${isDark ? 'bg-slate-900 border-cyan-500/50 shadow-cyan-500/10' : 'bg-slate-50 border-slate-300'}`}>
            <div className="flex-1">
-              <h4 className="text-cyan-400 font-bold text-[10px] uppercase tracking-widest mb-2 border-b border-slate-700 pb-1">Ficha Técnica</h4>
-              <ul className={`space-y-2 text-[10px] ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+              {/* Título más grande */}
+              <h4 className="text-cyan-400 font-bold text-xs uppercase tracking-widest mb-3 border-b border-slate-700 pb-1">Ficha Técnica</h4>
+              {/* Lista con letra más grande (text-xs = 12px vs text-[10px]) */}
+              <ul className={`space-y-3 text-xs ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                  <li className="flex justify-between"><span>Tipo:</span> <span className="font-bold truncate ml-2">{product.type}</span></li>
                  <li className="flex justify-between"><span>Color:</span> <span className="font-bold truncate ml-2">{product.color}</span></li>
                  <li className="flex justify-between"><span>Cat:</span> <span className="truncate ml-2">{product.category}</span></li>
                  {/* Mostrar QR si existe */}
                  {product.qrCode && (
                      <li className="flex justify-between pt-2 border-t border-slate-700/30 text-cyan-500">
-                        <span>QR:</span> <span className="font-mono text-[9px]">{product.qrCode}</span>
+                        <span>QR:</span> <span className="font-mono text-[10px]">{product.qrCode}</span>
                      </li>
                  )}
               </ul>
            </div>
            <button 
              onClick={(e) => { e.stopPropagation(); onAdd(product); }} 
-             className="w-full py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 text-xs active:scale-95 transition-transform"
+             className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 text-sm active:scale-95 transition-transform"
            >
-             <ShoppingCart size={14} /> Agregar
+             <ShoppingCart size={16} /> Agregar
            </button>
         </div>
       </div>
@@ -328,8 +330,6 @@ export default function POSSection({ products, isDark, onNotify, onReload, selle
         {isScannerOpen && (
             <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center animate-in fade-in">
                 <div className="relative w-full max-w-lg bg-black border-2 border-cyan-500 rounded-3xl overflow-hidden shadow-2xl shadow-cyan-500/20 p-4">
-                    
-                    {/* Botón de cerrar superior */}
                     <button 
                         onClick={stopScanner}
                         className="absolute top-2 right-2 z-20 p-2 bg-slate-800/80 text-white rounded-full hover:bg-red-600 transition-colors"
@@ -338,7 +338,6 @@ export default function POSSection({ products, isDark, onNotify, onReload, selle
                         <X size={20} />
                     </button>
 
-                    {/* Contenedor para la librería */}
                     <div id="qr-reader" className="w-full h-[400px] rounded-xl overflow-hidden bg-black relative"></div>
 
                     <button 
@@ -399,8 +398,15 @@ export default function POSSection({ products, isDark, onNotify, onReload, selle
             </div>
         </div>
 
-        {/* BOTÓN CARRITO */}
-        <button onClick={() => setIsCartOpen(true)} className="fixed bottom-8 right-8 z-30 px-6 py-4 bg-cyan-600 hover:bg-cyan-500 text-white rounded-full shadow-2xl shadow-cyan-500/40 flex items-center gap-3 transition-transform hover:scale-105 active:scale-95"><ShoppingCart size={24} /><span className="font-bold text-lg">Carrito</span>{cart.length > 0 && <span className="bg-white text-cyan-600 px-2 py-0.5 rounded-full text-xs font-black min-w-[24px] text-center">{cart.length}</span>}</button>
+        {/* BOTÓN CARRITO: Posicionado más arriba en móviles (bottom-24) para evitar scroll */}
+        <button 
+            onClick={() => setIsCartOpen(true)} 
+            className="fixed bottom-24 right-4 md:bottom-8 md:right-8 z-30 px-6 py-4 bg-cyan-600 hover:bg-cyan-500 text-white rounded-full shadow-2xl shadow-cyan-500/40 flex items-center gap-3 transition-transform hover:scale-105 active:scale-95"
+        >
+            <ShoppingCart size={24} />
+            <span className="font-bold text-lg">Carrito</span>
+            {cart.length > 0 && <span className="bg-white text-cyan-600 px-2 py-0.5 rounded-full text-xs font-black min-w-[24px] text-center">{cart.length}</span>}
+        </button>
 
         {/* DRAWER CARRITO */}
         <div 
@@ -450,38 +456,73 @@ export default function POSSection({ products, isDark, onNotify, onReload, selle
 
         {/* --- MODAL DE PAGO / TICKET --- */}
         {isPaymentModalOpen && !successTicket && (
-            <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in">
-                <div className={`w-full max-w-4xl rounded-3xl shadow-2xl border flex flex-col md:flex-row overflow-hidden h-[85vh] ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
-                    <div className={`flex-1 flex flex-col border-r ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
-                         <div className="p-6 border-b border-slate-700/50 flex justify-between items-center"><h3 className={`text-xl font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-800'}`}><Receipt size={24} className="text-cyan-400"/> Detalle de Venta</h3><button onClick={() => setIsPaymentModalOpen(false)} className="p-2 hover:bg-slate-700/50 rounded-full text-slate-400 hover:text-white"><X size={24}/></button></div>
-                         <div className="flex-1 overflow-y-auto p-6">
+            <div className="fixed inset-0 z-[80] flex items-center justify-center p-0 md:p-4 bg-black/90 backdrop-blur-md animate-in fade-in">
+                {/* Modal ajustado: h-full en móvil, h-[85vh] en PC, y contenido scrolleable */}
+                <div className={`w-full max-w-4xl h-full md:h-[85vh] md:rounded-3xl shadow-2xl border flex flex-col md:flex-row overflow-hidden ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
+                    
+                    {/* Panel Izquierdo: Lista Productos (Toma el espacio disponible) */}
+                    <div className={`flex-1 flex flex-col min-h-0 border-r ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+                         <div className="p-4 md:p-6 border-b border-slate-700/50 flex justify-between items-center shrink-0">
+                             <h3 className={`text-xl font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-800'}`}><Receipt size={24} className="text-cyan-400"/> Detalle de Venta</h3>
+                             <button onClick={() => setIsPaymentModalOpen(false)} className="p-2 hover:bg-slate-700/50 rounded-full text-slate-400 hover:text-white"><X size={24}/></button>
+                         </div>
+                         <div className="flex-1 overflow-y-auto p-4 md:p-6">
                             <table className="w-full text-left text-sm">
                                 <thead className={`${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'}`}><tr><th className="p-3">Producto</th><th className="p-3 text-center">Cant.</th><th className="p-3 text-right">Precio</th><th className="p-3 text-center">Desc (%)</th><th className="p-3 text-center">Desc ($)</th><th className="p-3 text-right">Total</th></tr></thead>
                                 <tbody className={`divide-y ${isDark ? 'divide-slate-800 text-slate-300' : 'divide-slate-100 text-slate-700'}`}>
                                     {cart.map(item => (
                                         <tr key={item._id}>
-                                            <td className="p-3"><p className="font-bold truncate max-w-[120px]">{item.model}</p></td>
+                                            <td className="p-3"><p className="font-bold truncate max-w-[100px] md:max-w-[120px]">{item.model}</p></td>
                                             <td className="p-3 text-center">{item.qty}</td>
                                             <td className="p-3 text-right">${item.price}</td>
                                             <td className="p-3 text-center">
-                                                <select className={`w-16 px-1 py-1 rounded border text-center outline-none ${isDark ? 'bg-slate-950 border-slate-700' : 'bg-white'}`} onChange={(e) => updateDiscountPercent(item._id, parseFloat(e.target.value) || 0)} value={item.discount > 0 ? Math.round((item.discount / (item.price * item.qty)) * 100) : 0}>
+                                                <select className={`w-14 md:w-16 px-1 py-1 rounded border text-center outline-none ${isDark ? 'bg-slate-950 border-slate-700' : 'bg-white'}`} onChange={(e) => updateDiscountPercent(item._id, parseFloat(e.target.value) || 0)} value={item.discount > 0 ? Math.round((item.discount / (item.price * item.qty)) * 100) : 0}>
                                                     <option value="0">-</option><option value="5">5%</option><option value="10">10%</option><option value="15">15%</option><option value="20">20%</option>
                                                 </select>
                                             </td>
-                                            <td className="p-3 text-center"><input type="number" min="0" value={item.discount || ''} onChange={(e) => updateDiscount(item._id, parseFloat(e.target.value) || 0)} className={`w-16 px-2 py-1 rounded border text-center ${isDark ? 'bg-slate-950 border-slate-700' : 'bg-white'}`}/></td>
+                                            <td className="p-3 text-center"><input type="number" min="0" value={item.discount || ''} onChange={(e) => updateDiscount(item._id, parseFloat(e.target.value) || 0)} className={`w-14 md:w-16 px-1 py-1 rounded border text-center ${isDark ? 'bg-slate-950 border-slate-700' : 'bg-white'}`}/></td>
                                             <td className="p-3 text-right font-bold">${(item.price * item.qty) - (item.discount || 0)}</td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
                         </div>
-                        <div className={`p-6 border-t ${isDark ? 'bg-slate-800/30' : 'bg-slate-50'}`}><div className="flex justify-between items-center"><span className="text-slate-500">Total a Pagar</span><span className={`text-3xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>${total.toFixed(2)}</span></div></div>
+                        <div className={`p-4 md:p-6 border-t shrink-0 ${isDark ? 'bg-slate-800/30' : 'bg-slate-50'}`}><div className="flex justify-between items-center"><span className="text-slate-500">Total a Pagar</span><span className={`text-3xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>${total.toFixed(2)}</span></div></div>
                     </div>
-                    <div className={`w-full md:w-96 p-8 flex flex-col gap-6 ${isDark ? 'bg-slate-800/20' : 'bg-white'}`}>
+
+                    {/* Panel Derecho: Controles Pago (Padding reducido en móvil) */}
+                    <div className={`w-full md:w-96 p-4 md:p-8 flex flex-col gap-4 md:gap-6 shrink-0 ${isDark ? 'bg-slate-800/20' : 'bg-white'}`}>
+                        {/* Botón cerrar visible en móvil arriba */}
                         <div className="flex justify-between md:hidden"><span/> <button onClick={() => setIsPaymentModalOpen(false)} className="p-2 bg-slate-800 rounded-full text-slate-400"><X size={20}/></button></div>
-                        <div><p className="text-xs font-bold uppercase text-slate-500 mb-3">Método de Pago</p><div className="grid grid-cols-3 gap-3">{(['Efectivo', 'Tarjeta', 'Transferencia'] as const).map((method) => (<button key={method} onClick={() => setPaymentMethod(method)} className={`py-3 rounded-xl border-2 flex flex-col items-center gap-1 transition-all ${paymentMethod === method ? 'border-cyan-500 bg-cyan-500/10 text-cyan-400' : isDark ? 'border-slate-700 bg-slate-800 text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>{method === 'Efectivo' && <Banknote size={20} />}{method === 'Tarjeta' && <CreditCard size={20} />}{method === 'Transferencia' && <Smartphone size={20} />}<span className="text-[10px] font-bold">{method}</span></button>))}</div></div>
-                        {paymentMethod === 'Efectivo' && (<div className={`p-6 rounded-2xl border-2 ${isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-slate-50'}`}><label className="block text-xs font-bold uppercase text-slate-500 mb-2">Paga con:</label><div className="relative mb-4"><span className="absolute left-4 top-3.5 text-slate-500 text-lg">$</span><input type="number" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} className={`w-full pl-8 pr-4 py-3 text-2xl font-bold rounded-xl border outline-none focus:ring-2 focus:ring-cyan-500 ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-900'}`} placeholder="0.00" autoFocus /></div><div className="flex justify-between items-center pt-4 border-t border-dashed border-slate-600/50"><span className="text-sm text-slate-400">Cambio:</span><span className={`text-2xl font-black ${change >= 0 ? 'text-green-500' : 'text-red-500'}`}>${change.toFixed(2)}</span></div></div>)}
-                        <button onClick={handlePay} disabled={paymentMethod === 'Efectivo' && paidValue < total} className="w-full mt-auto py-5 bg-green-600 hover:bg-green-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold rounded-2xl shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3"><CheckCircle size={24} /> CONFIRMAR VENTA</button>
+                        
+                        <div>
+                            <p className="text-xs font-bold uppercase text-slate-500 mb-3">Método de Pago</p>
+                            <div className="grid grid-cols-3 gap-2 md:gap-3">
+                                {(['Efectivo', 'Tarjeta', 'Transferencia'] as const).map((method) => (
+                                    <button key={method} onClick={() => setPaymentMethod(method)} className={`py-2 md:py-3 rounded-xl border-2 flex flex-col items-center gap-1 transition-all ${paymentMethod === method ? 'border-cyan-500 bg-cyan-500/10 text-cyan-400' : isDark ? 'border-slate-700 bg-slate-800 text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+                                        {method === 'Efectivo' && <Banknote size={18} />}
+                                        {method === 'Tarjeta' && <CreditCard size={18} />}
+                                        {method === 'Transferencia' && <Smartphone size={18} />}
+                                        <span className="text-[10px] font-bold">{method}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {paymentMethod === 'Efectivo' && (
+                            <div className={`p-4 md:p-6 rounded-2xl border-2 ${isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-slate-50'}`}>
+                                <label className="block text-xs font-bold uppercase text-slate-500 mb-2">Paga con:</label>
+                                <div className="relative mb-4">
+                                    <span className="absolute left-4 top-2.5 text-slate-500 text-lg">$</span>
+                                    <input type="number" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} className={`w-full pl-8 pr-4 py-2 text-xl font-bold rounded-xl border outline-none focus:ring-2 focus:ring-cyan-500 ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-900'}`} placeholder="0.00" autoFocus />
+                                </div>
+                                <div className="flex justify-between items-center pt-3 border-t border-dashed border-slate-600/50">
+                                    <span className="text-sm text-slate-400">Cambio:</span>
+                                    <span className={`text-xl font-black ${change >= 0 ? 'text-green-500' : 'text-red-500'}`}>${change.toFixed(2)}</span>
+                                </div>
+                            </div>
+                        )}
+                        <button onClick={handlePay} disabled={paymentMethod === 'Efectivo' && paidValue < total} className="w-full mt-auto py-4 md:py-5 bg-green-600 hover:bg-green-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold rounded-2xl shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3"><CheckCircle size={24} /> CONFIRMAR VENTA</button>
                     </div>
                 </div>
             </div>

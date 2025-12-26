@@ -11,76 +11,109 @@ interface StockSectionProps {
 }
 
 // --- CONFIGURACIÓN CLOUDINARY ---
-const CLOUDINARY_CLOUD_NAME = "dxdaoojfq"; // Tu Cloud Name real
-const CLOUDINARY_UPLOAD_PRESET = "novatech_preset"; // ⚠️ CREA ESTE PRESET EN TU DASHBOARD COMO 'UNSIGNED'
+const CLOUDINARY_CLOUD_NAME = "dxdaoojfq"; 
+const CLOUDINARY_UPLOAD_PRESET = "novatech_preset"; 
 
-// --- PROCESAMIENTO DE IMAGEN (OPTIMIZADO PARA CARDS) ---
-// Redimensiona a 1080px (Calidad Media-Alta Nítida)
+// --- PROCESAMIENTO DE IMAGEN (OPTIMIZADO PARA IOS/ANDROID/WEB) ---
 const processImageForUpload = (file: File): Promise<File> => {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
+    
     reader.onload = (event) => {
       const img = new Image();
       img.src = event.target?.result as string;
+      
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX_SIZE = 1080; // Balance perfecto entre nitidez y peso
-        let width = img.width;
-        let height = img.height;
+        try {
+            const canvas = document.createElement('canvas');
+            // Reducimos a 1000px: Seguro para iOS (memoria) y rápido para Android (red)
+            const MAX_SIZE = 1000; 
+            let width = img.width;
+            let height = img.height;
 
-        if (width > height) {
-          if (width > MAX_SIZE) {
-            height *= MAX_SIZE / width;
-            width = MAX_SIZE;
-          }
-        } else {
-          if (height > MAX_SIZE) {
-            width *= MAX_SIZE / height;
-            height = MAX_SIZE;
-          }
-        }
+            if (width > height) {
+              if (width > MAX_SIZE) {
+                height *= MAX_SIZE / width;
+                width = MAX_SIZE;
+              }
+            } else {
+              if (height > MAX_SIZE) {
+                width *= MAX_SIZE / height;
+                height = MAX_SIZE;
+              }
+            }
 
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          canvas.toBlob((blob) => {
-            if (blob) {
-              // JPEG al 90% de calidad para subida inicial
-              const newFile = new File([blob], file.name, { type: 'image/jpeg' });
-              resolve(newFile);
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              
+              // Calidad al 80%: Excelente balance visual/peso para móviles
+              canvas.toBlob((blob) => {
+                if (blob) {
+                  // Generamos un nombre único y limpio para evitar conflictos en cualquier SO
+                  const fileName = `img_opt_${Date.now()}.jpg`;
+                  const newFile = new File([blob], fileName, { type: 'image/jpeg' });
+                  resolve(newFile);
+                } else {
+                  console.warn("Fallo al comprimir blob, usando original");
+                  resolve(file);
+                }
+              }, 'image/jpeg', 0.80);
             } else {
               resolve(file);
             }
-          }, 'image/jpeg', 0.90);
-        } else {
-          resolve(file);
+        } catch (err) {
+            console.error("Error en procesamiento de canvas:", err);
+            resolve(file);
         }
       };
+      
+      img.onerror = (e) => {
+          console.error("Error al cargar imagen en objeto Image:", e);
+          resolve(file);
+      };
+    };
+    
+    reader.onerror = (e) => {
+        console.error("Error FileReader:", e);
+        resolve(file);
     };
   });
 };
 
-// Subida directa usando fetch (Sin librería pesada de node)
+// --- SUBIDA A CLOUDINARY ---
 const uploadToCloudinary = async (file: File): Promise<string> => {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
 
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
-      method: "POST",
-      body: formData
-  });
+  try {
+      const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+          method: "POST",
+          body: formData
+      });
 
-  if (!response.ok) throw new Error("Error al conectar con Cloudinary. Revisa tu Preset.");
-  const data = await response.json();
-  
-  // Inyectamos optimización automática (f_auto, q_auto) en la URL
-  // Esto hace que Cloudinary sirva la mejor versión posible para el dispositivo
-  const optimizedUrl = data.secure_url.replace('/upload/', '/upload/f_auto,q_auto/');
-  return optimizedUrl;
+      if (!response.ok) {
+          const errorData = await response.json();
+          console.error("Error Detallado Cloudinary:", errorData);
+          const msg = errorData.error?.message || "Error desconocido";
+          
+          if (msg.includes("preset")) {
+              throw new Error(`Configuración Cloudinary: Revisa que el preset '${CLOUDINARY_UPLOAD_PRESET}' sea 'Unsigned'.`);
+          }
+          throw new Error(`Cloudinary rechazó la imagen: ${msg}`);
+      }
+
+      const data = await response.json();
+      return data.secure_url.replace('/upload/', '/upload/f_auto,q_auto/');
+      
+  } catch (err: any) {
+      throw new Error(err.message || "Fallo de red al subir imagen");
+  }
 };
 
 export default function StockSection({ isDark, onNotify, editingProduct, onCancelEdit }: StockSectionProps) {
@@ -89,7 +122,7 @@ export default function StockSection({ isDark, onNotify, editingProduct, onCance
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState<string>(''); // Estado para mostrar progreso
+  const [uploadStatus, setUploadStatus] = useState<string>('');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -102,7 +135,6 @@ export default function StockSection({ isDark, onNotify, editingProduct, onCance
   const labelClass = `block text-xs font-bold uppercase tracking-wider mb-1 ml-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`;
   const iconClass = "absolute left-3 top-9 text-slate-500";
 
-  // --- EFECTO: CARGAR DATOS AL EDITAR ---
   useEffect(() => {
     if (editingProduct && formRef.current) {
         const form = formRef.current;
@@ -144,7 +176,7 @@ export default function StockSection({ isDark, onNotify, editingProduct, onCance
         throw new Error("No se encontró cámara");
       }
     } catch (err) {
-      onNotify('error', 'No se pudo acceder a la cámara.');
+      onNotify('error', 'No se pudo acceder a la cámara directa. Se abrirá la cámara nativa.');
       setIsCameraOpen(false);
       setTimeout(() => cameraInputRef.current?.click(), 500);
     }
@@ -171,7 +203,7 @@ export default function StockSection({ isDark, onNotify, editingProduct, onCance
             setPreviewUrl(URL.createObjectURL(file));
             stopCamera(); 
           }
-        }, 'image/jpeg', 0.95);
+        }, 'image/jpeg', 0.85);
       }
     }
   };
@@ -191,7 +223,6 @@ export default function StockSection({ isDark, onNotify, editingProduct, onCance
     if (cameraInputRef.current) cameraInputRef.current.value = '';
   };
 
-  // --- ENVÍO CON SUBIDA A CLOUDINARY ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
@@ -211,17 +242,25 @@ export default function StockSection({ isDark, onNotify, editingProduct, onCance
     try {
         let imageUrl = editingProduct?.image || '';
 
-        // 1. Si hay nueva imagen, la subimos a Cloudinary
+        // Proceso de subida de imagen con manejo de errores específico
         if (selectedImage) {
-            setUploadStatus('Optimizando...');
-            const processedFile = await processImageForUpload(selectedImage);
+            setUploadStatus('Optimizando imagen...');
+            let processedFile;
+            try {
+                processedFile = await processImageForUpload(selectedImage);
+            } catch (procErr) {
+                console.warn("Error en optimización, usando original:", procErr);
+                processedFile = selectedImage; // Fallback
+            }
             
             setUploadStatus('Subiendo a la Nube...');
-            // Obtenemos la URL pública optimizada (f_auto, q_auto)
-            imageUrl = await uploadToCloudinary(processedFile);
+            try {
+                imageUrl = await uploadToCloudinary(processedFile);
+            } catch (cloudErr: any) {
+                throw new Error(`Error de Imagen: ${cloudErr.message}`);
+            }
         }
 
-        // 2. Preparamos datos para Mongo (Guardamos solo la URL de texto)
         const payload = {
             brand: getVal('brand'),
             model: getVal('model'),
@@ -232,7 +271,7 @@ export default function StockSection({ isDark, onNotify, editingProduct, onCance
             price: Number(getVal('price')),
             qrCode: getVal('qrCode') || '',
             year: new Date().getFullYear().toString(),
-            image: imageUrl // URL de Cloudinary
+            image: imageUrl 
         };
 
         setUploadStatus('Guardando datos...');
@@ -249,9 +288,10 @@ export default function StockSection({ isDark, onNotify, editingProduct, onCance
             clearImage();
         }
     } catch (error: any) {
-        console.error(error);
-        let msg = 'Error al guardar.';
-        if (error.message.includes('Preset')) msg = 'Error: Configura el Upload Preset en Cloudinary.';
+        console.error("Error en handleSubmit:", error);
+        // Mensaje de error amigable para el usuario
+        let msg = error.message;
+        if (msg.includes("Failed to fetch")) msg = "Error de conexión. Verifica tu internet.";
         onNotify('error', msg);
     } finally {
         setIsSubmitting(false);
